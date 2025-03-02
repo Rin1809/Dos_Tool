@@ -1,0 +1,22 @@
+# Môi trường ảo
+moitruongao/
+venv/
+.venv/
+env/
+
+# File Python đã biên dịch
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# File cấu hình cá nhân (nếu có)
+.env
+config.ini
+secrets.txt
+
+# Các file log (nếu có)
+*.log
+
+#Các file bạn tạo ra trong quá trình chạy
+attack_log.txt
