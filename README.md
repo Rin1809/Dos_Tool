@@ -1,7 +1,6 @@
 # Dos Tool ᓚᘏᗢ
 
 
-Công cụ tấn công DoS (Denial of Service) đa năng, hỗ trợ nhiều phương thức tấn công Layer 7 (HTTP, HTTPS, Slowloris, R.U.D.Y) và khả năng tùy biến cao.
 
 <details>
 <summary> 🇻🇳  Tiếng Việt</summary>
