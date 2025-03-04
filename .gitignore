@@ -10,13 +10,9 @@ __pycache__/
 *.pyo
 *.pyd
 
-# File cấu hình cá nhân (nếu có)
 .env
 config.ini
 secrets.txt
 
 # Các file log (nếu có)
 *.log
-
-#Các file bạn tạo ra trong quá trình chạy
-attack_log.txt
