@@ -14,5 +14,4 @@ __pycache__/
 config.ini
 secrets.txt
 
-# Các file log (nếu có)
-*.log
+
