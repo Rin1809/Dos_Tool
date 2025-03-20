@@ -1,6 +1,10 @@
 # Dos Tool ᓚᘏᗢ
 
+## Picture 1
 ![Image](https://github.com/user-attachments/assets/3216e857-a591-46c6-ac36-b98ab480a1ad)
+----------
+## Picture 2
+![image](https://github.com/user-attachments/assets/f2f329cf-0f1c-42bd-b79a-7774f2d36b8f)
 
 ## Introduction
 <details>
